@@ -23,7 +23,7 @@ def set_seed(seed):
     np.random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
 
-seeds = [42]
+seeds = [42, 43, 44, 45, 46]
 
 perform = dict()
 
