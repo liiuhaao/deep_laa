@@ -244,7 +244,7 @@ for dataset in os.listdir("data"):
             tf.initialize_all_variables().run()
             # initialize x -> y
             print("Initialize x -> y ...")
-            epochs = 10
+            epochs = 50
             total_batches = int(n_samples / batch_size)
             for epoch in range(epochs):
                 total_hit = 0
@@ -259,7 +259,7 @@ for dataset in os.listdir("data"):
                 print(dataset, seed, "epoch: {0} accuracy: {1}".format(epoch, float(total_hit) / n_samples))
 
             print("Train the whole network ...")
-            epochs = 10
+            epochs = 500
             total_batches = int(n_samples / batch_size)
             for epoch in range(epochs):
                 total_hit = 0
