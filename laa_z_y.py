@@ -28,6 +28,9 @@ seeds = [42, 43, 44, 45, 46]
 perform = dict()
 
 for dataset in os.listdir("data"):
+    if dataset in ["Senti"]:
+        continue
+    print(dataset)
     filename = os.path.join("data", dataset)
     perform[dataset]={
         "accuracy":{"values":[]},
@@ -49,20 +52,26 @@ for dataset in os.listdir("data"):
         else:
             label_csv = pd.read_csv(os.path.join(filename, "label.csv"))
             truth_csv = pd.read_csv(os.path.join(filename, "truth.csv"))
-            source_num = len(set(label_csv.loc[:, "worker"]))
-            object_num = len(set(label_csv.loc[:, "task"]))
-            category_size = len(set(label_csv.loc[:, "answer"]))
+            # 对worker、task、answer进行重映射，保证索引安全
+            label_csv["worker"], worker_index = pd.factorize(label_csv["worker"])
+            label_csv["task"], task_index = pd.factorize(label_csv["task"])
+            label_csv["answer"], answer_index = pd.factorize(label_csv["answer"])
+            truth_csv["task"] = truth_csv["task"].map({v: i for i, v in enumerate(task_index)})
+            truth_csv["truth"] = truth_csv["truth"].map({v: i for i, v in enumerate(answer_index)})
+            source_num = len(worker_index)
+            object_num = len(task_index)
+            category_size = len(answer_index)
             user_labels = np.zeros((object_num, source_num * category_size))
             label_mask = np.zeros((object_num, source_num * category_size))
             true_labels = np.zeros((object_num, 1))
-            for _,row in label_csv.iterrows():
-                # print(int(row["worker"]) * (category_size - 1) + int(row["label"]))
+            for _, row in label_csv.iterrows():
                 user_labels[int(row["task"]), int(row["worker"]) * category_size + int(row["answer"])] = 1
                 for j in range(category_size):
                     label_mask[int(row["task"]), int(row["worker"]) * category_size + j] = 1
 
-            for _,row in truth_csv.iterrows():
-                true_labels[int(row["task"])]=int(row["truth"])
+            for _, row in truth_csv.iterrows():
+                if not np.isnan(row["task"]) and not np.isnan(row["truth"]):
+                    true_labels[int(row["task"])] = int(row["truth"])
 
         n_samples, _ = np.shape(true_labels)
         mv_y = dls.get_majority_y(user_labels, source_num, category_size)
@@ -70,7 +79,7 @@ for dataset in os.listdir("data"):
         input_size = source_num * category_size
         batch_size = n_samples
 
-        n_z = 4 # number of latent aspects
+        n_z = 2 # number of latent aspects
         flag_deep_z = False
 
         # define x
@@ -229,7 +238,7 @@ for dataset in os.listdir("data"):
             + 0.5/source_num/n_z/n_z * (loss_z_weights_l2 + loss_z_biases_l2)
 
         # optimizer
-        learning_rate = 0.01
+        learning_rate = 0.001
         optimizer_classifier_x_y = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss_classifier_x_y)
         # optimizer_VAE = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss_VAE)
         optimizer_classifier = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss_classifier)
@@ -294,17 +303,17 @@ for dataset in os.listdir("data"):
             perform[dataset]["macro_fscore"]["values"].append(f1_macro)
             perform[dataset]["weighted_fscore"]["values"].append(f1_weighted)
             perform[dataset]["runtime"]["values"].append(runtime)
-        for k in perform["dataset"]:
-            perform["dataset"][k]["mean"] = np.mean(perform["dataset"][k]["values"])
-            perform["dataset"][k]["std"] = np.std(perform["dataset"][k]["values"])
+        for k in perform[dataset]:
+            perform[dataset][k]["mean"] = np.mean(perform[dataset][k]["values"])
+            perform[dataset][k]["std"] = np.std(perform[dataset][k]["values"])
         print("Done!")
 
 
     avg_perform=dict()
     metric_keys = perform[dataset].keys()
     for key in metric_keys:
-        avg_mean = np.mean(perform[d][key]["mean"] for d in perform)
-        avg_std = np.mean(perform[d][key]["std"] for d in perform)
+        avg_mean = np.mean([perform[d][key]["mean"] for d in perform])
+        avg_std = np.mean([perform[d][key]["std"] for d in perform])
         avg_perform[key] = {"mean": avg_mean, "std": avg_std}
 
     perform["Avg"] = avg_perform
